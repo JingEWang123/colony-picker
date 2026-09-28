@@ -45,6 +45,12 @@ jobs:
         run: python -m unittest discover -s tests_runtime -v
       - name: Audit runtime imports
         run: python scripts/check_runtime_imports.py
+      - name: Preserve onefile specification
+        shell: pwsh
+        run: |
+          Copy-Item ColonyPicker.spec ColonyPicker.onefile.spec
+          $script = Get-Content scripts/build_windows.ps1 -Raw
+          $script.Replace("ColonyPicker.spec", "ColonyPicker.onefile.spec") | Set-Content scripts/build_windows.ps1
       - name: Build and smoke-test onedir then onefile
         shell: pwsh
         run: ./scripts/build_windows.ps1
