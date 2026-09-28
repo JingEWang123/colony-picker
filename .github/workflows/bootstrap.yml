@@ -1,0 +1,78 @@
+name: Bootstrap and build ColonyPicker
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Expand submission repository
+        run: |
+          unzip -q ColonyPicker_Submission.zip -d extracted
+          mkdir staged
+          cp -a extracted/colony-picker-submission/. staged/
+
+      - name: Preserve expanded source for Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: expanded-source
+          path: staged
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Replace archive with normal repository files
+        run: |
+          cp -a staged/. .
+          rm -f ColonyPicker_Submission.zip
+          rm -f .github/workflows/bootstrap.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Expand ColonyPicker submission repository"
+          git push
+
+  build:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download expanded source
+        uses: actions/download-artifact@v4
+        with:
+          name: expanded-source
+          path: .
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install runtime and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests_runtime -v
+
+      - name: Audit runtime imports
+        run: python scripts/check_runtime_imports.py
+
+      - name: Build and smoke-test onedir then onefile
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+
+      - name: Upload ColonyPicker.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ColonyPicker-windows-x64
+          path: dist/ColonyPicker.exe
+          if-no-files-found: error
+          retention-days: 30
